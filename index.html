@@ -197,7 +197,7 @@
             </div>
         </div>
 
-        <canvas id="gameCanvas" width="400" height="400"></canvas>
+        <canvas id="gameCanvas" width="800" height="400"></canvas>
 
         <div class="controls">
             <button class="btn-start" id="startBtn">开始游戏</button>
@@ -493,75 +493,220 @@
             }
         });
 
-        // 🎵 优美的背景音乐系统 (Web Audio API)
+        // 🎵 丰富的背景音乐系统 (Web Audio API)
         let audioContext = null;
         let musicInterval = null;
         let masterGain = null;
+        let melodyGain = null;
+        let bassGain = null;
+        let padGain = null;
 
-        // 和弦序列 - 温暖的轻音乐风格
-        const chordSequence = [
-            { root: 262, type: 'major' },    // C major
-            { root: 294, type: 'minor' },    // D minor  
-            { root: 330, type: 'minor' },    // E minor
-            { root: 349, type: 'major' },    // F major
-            { root: 392, type: 'major' },    // G major
-            { root: 440, type: 'minor' },    // A minor
-            { root: 262, type: 'major' },    // C major (重复)
-            { root: 392, type: 'major7' },   // G major7
-        ];
+        // 音乐结构 - 16小节循环
+        const musicStructure = {
+            // 和弦序列 (每小节一个和弦)
+            chords: [
+                { root: 262, name: 'C',  type: 'major' },
+                { root: 262, name: 'C',  type: 'major' },
+                { root: 294, name: 'D',  type: 'minor' },
+                { root: 294, name: 'D',  type: 'minor' },
+                { root: 330, name: 'E',  type: 'minor' },
+                { root: 330, name: 'E',  type: 'minor' },
+                { root: 349, name: 'F',  type: 'major' },
+                { root: 392, name: 'G',  type: 'major' },
+                { root: 262, name: 'C',  type: 'major' },
+                { root: 262, name: 'C',  type: 'major' },
+                { root: 294, name: 'D',  type: 'minor' },
+                { root: 330, name: 'E',  type: 'minor' },
+                { root: 349, name: 'F',  type: 'major' },
+                { root: 392, name: 'G',  type: 'major7' },
+                { root: 440, name: 'Am', type: 'minor' },
+                { root: 392, name: 'G',  type: 'major' },
+            ],
+            // 旋律音符 (每个和弦对应的旋律)
+            melodies: [
+                [523, 587, 659, 523],      // C: E G A E
+                [523, 494, 523, 587],      // C: E D E G
+                [587, 523, 494, 440],      // Dm: G E D C
+                [440, 494, 523, 587],      // Dm: C D E G
+                [494, 523, 587, 659],      // Em: D E G A
+                [659, 587, 523, 494],      // Em: A G E D
+                [523, 587, 659, 698],      // F: E G A Bb
+                [659, 698, 784, 659],      // G: A B D A
+                [523, 587, 659, 784],      // C: E G A D
+                [784, 659, 587, 523],      // C: D A G E
+                [587, 523, 494, 440],      // Dm: G E D C
+                [494, 523, 587, 659],      // Em: D E G A
+                [523, 587, 659, 698],      // F: E G A Bb
+                [659, 784, 880, 784],      // G7: A D E D
+                [440, 523, 587, 659],      // Am: C E G A
+                [659, 587, 523, 392],      // G: A G E G
+            ],
+            // 低音线
+            bass: [
+                [131, 131, 131, 131],      // C bass
+                [131, 131, 147, 131],      // C with D
+                [147, 147, 147, 147],      // D bass
+                [147, 147, 165, 147],      // D with E
+                [165, 165, 165, 165],      // E bass
+                [165, 165, 175, 165],      // E with F
+                [175, 175, 175, 175],      // F bass
+                [196, 196, 196, 196],      // G bass
+                [131, 131, 131, 131],      // C bass
+                [131, 147, 165, 131],      // C walking
+                [147, 147, 165, 175],      // D walking
+                [165, 165, 175, 196],      // E walking
+                [175, 175, 196, 175],      // F walking
+                [196, 220, 196, 175],      // G7 walking
+                [220, 220, 196, 175],      // Am walking
+                [196, 175, 165, 131],      // G resolving
+            ]
+        };
 
-        // 获取和弦音符
-        function getChordNotes(root, type) {
-            const ratios = {
-                'major': [1, 1.25, 1.5],           // 根音、大三度、五度
-                'minor': [1, 1.2, 1.5],            // 根音、小三度、五度
-                'major7': [1, 1.25, 1.5, 1.875],   // 根音、大三度、五度、大七度
-            };
-            return ratios[type].map(r => root * r);
-        }
+        let currentBar = 0;
+        let beatInBar = 0;
 
-        // 创建优美的音色
-        function createBeautifulTone(freq, startTime, duration, volume = 0.08) {
+        // 创建柔和的钢琴音色
+        function createPianoTone(freq, startTime, duration, volume = 0.08) {
             if (!audioContext) return;
 
-            // 主振荡器 - 柔和的正弦波
+            // 主音 - 正弦波
             const osc1 = audioContext.createOscillator();
             osc1.type = 'sine';
             osc1.frequency.setValueAtTime(freq, startTime);
 
-            // 第二振荡器 - 轻微的三角波增加温暖感
+            // 泛音1 - 轻柔的三角波
             const osc2 = audioContext.createOscillator();
             osc2.type = 'triangle';
-            osc2.frequency.setValueAtTime(freq * 2, startTime); // 高一个八度，很轻
+            osc2.frequency.setValueAtTime(freq * 2, startTime);
 
-            // 第三振荡器 - 极轻的高频泛音
+            // 泛音2 - 极轻的高频
             const osc3 = audioContext.createOscillator();
             osc3.type = 'sine';
             osc3.frequency.setValueAtTime(freq * 3, startTime);
 
-            // 包络线 - 柔和的起音和衰减
+            // 泛音3 - 更高的泛音
+            const osc4 = audioContext.createOscillator();
+            osc4.type = 'sine';
+            osc4.frequency.setValueAtTime(freq * 4, startTime);
+
+            // 包络 - 钢琴风格的快速起音，缓慢衰减
             const gain1 = audioContext.createGain();
             gain1.gain.setValueAtTime(0, startTime);
-            gain1.gain.linearRampToValueAtTime(volume, startTime + 0.1);
+            gain1.gain.linearRampToValueAtTime(volume, startTime + 0.02);
             gain1.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
 
             const gain2 = audioContext.createGain();
             gain2.gain.setValueAtTime(0, startTime);
-            gain2.gain.linearRampToValueAtTime(volume * 0.15, startTime + 0.1);
-            gain2.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+            gain2.gain.linearRampToValueAtTime(volume * 0.2, startTime + 0.02);
+            gain2.gain.exponentialRampToValueAtTime(0.001, startTime + duration * 0.7);
 
             const gain3 = audioContext.createGain();
             gain3.gain.setValueAtTime(0, startTime);
-            gain3.gain.linearRampToValueAtTime(volume * 0.05, startTime + 0.1);
-            gain3.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+            gain3.gain.linearRampToValueAtTime(volume * 0.08, startTime + 0.02);
+            gain3.gain.exponentialRampToValueAtTime(0.001, startTime + duration * 0.5);
 
-            // 连接
+            const gain4 = audioContext.createGain();
+            gain4.gain.setValueAtTime(0, startTime);
+            gain4.gain.linearRampToValueAtTime(volume * 0.03, startTime + 0.02);
+            gain4.gain.exponentialRampToValueAtTime(0.001, startTime + duration * 0.3);
+
             osc1.connect(gain1);
             osc2.connect(gain2);
             osc3.connect(gain3);
-            gain1.connect(masterGain);
-            gain2.connect(masterGain);
-            gain3.connect(masterGain);
+            osc4.connect(gain4);
+            gain1.connect(melodyGain);
+            gain2.connect(melodyGain);
+            gain3.connect(melodyGain);
+            gain4.connect(melodyGain);
+
+            osc1.start(startTime);
+            osc2.start(startTime);
+            osc3.start(startTime);
+            osc4.start(startTime);
+            osc1.stop(startTime + duration);
+            osc2.stop(startTime + duration);
+            osc3.stop(startTime + duration);
+            osc4.stop(startTime + duration);
+        }
+
+        // 创建温暖的低音音色
+        function createBassTone(freq, startTime, duration, volume = 0.12) {
+            if (!audioContext) return;
+
+            // 低音 - 柔和的正弦波
+            const osc1 = audioContext.createOscillator();
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(freq, startTime);
+
+            // 低音泛音 - 轻微的三角波
+            const osc2 = audioContext.createOscillator();
+            osc2.type = 'triangle';
+            osc2.frequency.setValueAtTime(freq * 2, startTime);
+
+            // 包络 - 低音需要更长的衰减
+            const gain1 = audioContext.createGain();
+            gain1.gain.setValueAtTime(0, startTime);
+            gain1.gain.linearRampToValueAtTime(volume, startTime + 0.05);
+            gain1.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+            const gain2 = audioContext.createGain();
+            gain2.gain.setValueAtTime(0, startTime);
+            gain2.gain.linearRampToValueAtTime(volume * 0.15, startTime + 0.05);
+            gain2.gain.exponentialRampToValueAtTime(0.001, startTime + duration * 0.8);
+
+            osc1.connect(gain1);
+            osc2.connect(gain2);
+            gain1.connect(bassGain);
+            gain2.connect(bassGain);
+
+            osc1.start(startTime);
+            osc2.start(startTime);
+            osc1.stop(startTime + duration);
+            osc2.stop(startTime + duration);
+        }
+
+        // 创建柔和的 Pad 音色 (和弦垫底)
+        function createPadTone(freq, startTime, duration, volume = 0.04) {
+            if (!audioContext) return;
+
+            // Pad - 多层正弦波叠加，缓慢起音
+            const osc1 = audioContext.createOscillator();
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(freq, startTime);
+
+            const osc2 = audioContext.createOscillator();
+            osc2.type = 'sine';
+            osc2.frequency.setValueAtTime(freq * 1.002, startTime); // 轻微失谐增加厚度
+
+            const osc3 = audioContext.createOscillator();
+            osc3.type = 'triangle';
+            osc3.frequency.setValueAtTime(freq * 0.5, startTime); // 低一个八度
+
+            // 包络 - Pad 需要非常缓慢的起音和衰减
+            const gain1 = audioContext.createGain();
+            gain1.gain.setValueAtTime(0, startTime);
+            gain1.gain.linearRampToValueAtTime(volume, startTime + 0.3);
+            gain1.gain.linearRampToValueAtTime(volume * 0.8, startTime + duration - 0.3);
+            gain1.gain.linearRampToValueAtTime(0, startTime + duration);
+
+            const gain2 = audioContext.createGain();
+            gain2.gain.setValueAtTime(0, startTime);
+            gain2.gain.linearRampToValueAtTime(volume * 0.7, startTime + 0.3);
+            gain2.gain.linearRampToValueAtTime(volume * 0.5, startTime + duration - 0.3);
+            gain2.gain.linearRampToValueAtTime(0, startTime + duration);
+
+            const gain3 = audioContext.createGain();
+            gain3.gain.setValueAtTime(0, startTime);
+            gain3.gain.linearRampToValueAtTime(volume * 0.4, startTime + 0.4);
+            gain3.gain.linearRampToValueAtTime(volume * 0.3, startTime + duration - 0.4);
+            gain3.gain.linearRampToValueAtTime(0, startTime + duration);
+
+            osc1.connect(gain1);
+            osc2.connect(gain2);
+            osc3.connect(gain3);
+            gain1.connect(padGain);
+            gain2.connect(padGain);
+            gain3.connect(padGain);
 
             osc1.start(startTime);
             osc2.start(startTime);
@@ -571,64 +716,91 @@
             osc3.stop(startTime + duration);
         }
 
-        // 播放琶音和弦
-        function playArpeggio(chordIndex) {
+        // 获取和弦音符
+        function getChordNotes(root, type) {
+            const ratios = {
+                'major': [1, 1.25, 1.5, 1.875],
+                'minor': [1, 1.2, 1.5, 1.8],
+                'major7': [1, 1.25, 1.5, 1.875],
+            };
+            return ratios[type].map(r => root * r);
+        }
+
+        // 播放一拍的音乐
+        function playBeat() {
             if (!audioContext || audioContext.state === 'closed') return;
 
-            const chord = chordSequence[chordIndex];
-            const notes = getChordNotes(chord.root, chord.type);
             const now = audioContext.currentTime;
+            const chord = musicStructure.chords[currentBar];
+            const melodyNote = musicStructure.melodies[currentBar][beatInBar];
+            const bassNote = musicStructure.bass[currentBar][beatInBar];
+            const chordNotes = getChordNotes(chord.root, chord.type);
 
-            // 琶音 - 从低到高依次播放
-            notes.forEach((note, i) => {
-                createBeautifulTone(note, now + i * 0.15, 1.2, 0.06);
-            });
+            // 旋律 - 每拍一个音符
+            createPianoTone(melodyNote, now, 0.45, 0.07);
 
-            // 添加高八度琶音
-            notes.forEach((note, i) => {
-                if (i < 3) {
-                    createBeautifulTone(note * 2, now + 0.6 + i * 0.1, 0.8, 0.03);
-                }
-            });
+            // 低音 - 每拍一个音符
+            createBassTone(bassNote, now, 0.4, 0.1);
+
+            // Pad 和弦垫底 - 只在每小节第一拍更新
+            if (beatInBar === 0) {
+                chordNotes.forEach(note => {
+                    createPadTone(note, now, 1.8, 0.03);
+                });
+            }
+
+            // 更新节拍计数
+            beatInBar++;
+            if (beatInBar >= 4) {
+                beatInBar = 0;
+                currentBar = (currentBar + 1) % musicStructure.chords.length;
+            }
         }
 
         // 启动背景音乐
         function startBackgroundMusic() {
-            if (audioContext) return; // 已经启动了
+            if (audioContext) return;
 
             audioContext = new (window.AudioContext || window.webkitAudioContext)();
             
-            // 主音量控制
+            // 主音量
             masterGain = audioContext.createGain();
-            masterGain.gain.setValueAtTime(0.3, audioContext.currentTime);
+            masterGain.gain.setValueAtTime(0.25, audioContext.currentTime);
             masterGain.connect(audioContext.destination);
 
-            // 如果 AudioContext 处于暂停状态（浏览器自动暂停），恢复它
+            // 旋律音量
+            melodyGain = audioContext.createGain();
+            melodyGain.gain.setValueAtTime(0.8, audioContext.currentTime);
+            melodyGain.connect(masterGain);
+
+            // 低音音量
+            bassGain = audioContext.createGain();
+            bassGain.gain.setValueAtTime(0.6, audioContext.currentTime);
+            bassGain.connect(masterGain);
+
+            // Pad 音量
+            padGain = audioContext.createGain();
+            padGain.gain.setValueAtTime(0.5, audioContext.currentTime);
+            padGain.connect(masterGain);
+
             if (audioContext.state === 'suspended') {
                 audioContext.resume();
             }
 
-            let chordIndex = 0;
+            // 每0.5秒一拍 (120 BPM)
+            musicInterval = setInterval(playBeat, 500);
             
-            // 每2秒播放一个和弦
-            musicInterval = setInterval(() => {
-                playArpeggio(chordIndex);
-                chordIndex = (chordIndex + 1) % chordSequence.length;
-            }, 2000);
-
-            // 立即播放第一个和弦
-            playArpeggio(0);
+            // 立即开始第一拍
+            playBeat();
         }
 
         // 在用户第一次交互时启动音乐
         function initMusicOnInteraction() {
             startBackgroundMusic();
-            // 移除监听器，只启动一次
             document.removeEventListener('click', initMusicOnInteraction);
             document.removeEventListener('keydown', initMusicOnInteraction);
         }
 
-        // 监听用户交互来启动音乐（浏览器要求）
         document.addEventListener('click', initMusicOnInteraction, { once: true });
         document.addEventListener('keydown', initMusicOnInteraction, { once: true });
 
