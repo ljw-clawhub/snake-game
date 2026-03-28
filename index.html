@@ -63,6 +63,8 @@
             border-radius: 10px;
             box-shadow: 0 0 30px rgba(0, 255, 136, 0.3);
             background: #0a0a0a;
+            max-width: 100%;
+            touch-action: none;
         }
 
         .controls {
@@ -71,6 +73,20 @@
             gap: 15px;
             justify-content: center;
             flex-wrap: wrap;
+        }
+
+        .btn-music {
+            background: linear-gradient(135deg, #9b59b6, #8e44ad);
+            color: #fff;
+        }
+
+        .btn-music:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(155, 89, 182, 0.4);
+        }
+
+        .btn-music.active {
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
         }
 
         button {
@@ -148,12 +164,6 @@
         .mobile-btn.right { grid-column: 3; grid-row: 2; }
 
         @media (max-width: 850px) {
-            #gameCanvas {
-                width: 100%;
-                max-width: 800px;
-                height: auto;
-            }
-
             h1 {
                 font-size: 1.8rem;
             }
@@ -215,11 +225,12 @@
             </div>
         </div>
 
-        <canvas id="gameCanvas" width="800" height="400"></canvas>
+        <canvas id="gameCanvas"></canvas>
 
         <div class="controls">
             <button class="btn-start" id="startBtn">开始游戏</button>
             <button class="btn-pause" id="pauseBtn">暂停</button>
+            <button class="btn-music" id="musicBtn">🎵 音乐开</button>
         </div>
 
         <div class="mobile-controls">
@@ -250,12 +261,12 @@
         const highScoreEl = document.getElementById('highScore');
         const startBtn = document.getElementById('startBtn');
         const pauseBtn = document.getElementById('pauseBtn');
+        const musicBtn = document.getElementById('musicBtn');
         const gameOverEl = document.getElementById('gameOver');
         const finalScoreEl = document.getElementById('finalScore');
 
         const gridSize = 20;
-        const tileCountX = canvas.width / gridSize;   // 水平格子数 (40)
-        const tileCountY = canvas.height / gridSize;  // 垂直格子数 (20)
+        let tileCountX, tileCountY;  // 动态计算
 
         let snake = [];
         let food = {};
@@ -267,14 +278,65 @@
         let gameSpeed = 130; // 减慢30%
         let isRunning = false;
         let isPaused = false;
+        let musicEnabled = true;
 
         highScoreEl.textContent = highScore;
 
+        // 动态调整画布大小
+        function resizeCanvas() {
+            const maxWidth = Math.min(window.innerWidth - 40, 800);  // 最大800，留边距
+            const aspectRatio = 2;  // 宽高比 2:1
+            
+            canvas.width = maxWidth;
+            canvas.height = maxWidth / aspectRatio;
+            
+            // 确保高度不超过屏幕
+            const maxHeight = window.innerHeight * 0.4;
+            if (canvas.height > maxHeight) {
+                canvas.height = maxHeight;
+                canvas.width = maxHeight * aspectRatio;
+            }
+            
+            // 确保是 gridSize 的整数倍
+            canvas.width = Math.floor(canvas.width / gridSize) * gridSize;
+            canvas.height = Math.floor(canvas.height / gridSize) * gridSize;
+            
+            // 更新格子数
+            tileCountX = canvas.width / gridSize;
+            tileCountY = canvas.height / gridSize;
+            
+            // 如果游戏正在运行，重新绘制
+            if (snake.length > 0) {
+                // 确保蛇和食物在新画布范围内
+                snake = snake.map(s => ({
+                    x: Math.min(s.x, tileCountX - 1),
+                    y: Math.min(s.y, tileCountY - 1)
+                }));
+                if (food.x >= tileCountX || food.y >= tileCountY) {
+                    spawnFood();
+                }
+                draw();
+            }
+        }
+
+        // 监听窗口大小变化
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('orientationchange', () => {
+            setTimeout(resizeCanvas, 100);
+        });
+
+        // 初始化画布大小
+        resizeCanvas();
+
         function initGame() {
+            resizeCanvas();
+            const centerX = Math.floor(tileCountX / 2);
+            const centerY = Math.floor(tileCountY / 2);
+            
             snake = [
-                { x: 20, y: 10 },  // 调整到画布中心
-                { x: 19, y: 10 },
-                { x: 18, y: 10 }
+                { x: centerX, y: centerY },
+                { x: centerX - 1, y: centerY },
+                { x: centerX - 2, y: centerY }
             ];
             direction = { x: 1, y: 0 };
             nextDirection = { x: 1, y: 0 };
@@ -780,44 +842,72 @@
 
         // 启动背景音乐
         function startBackgroundMusic() {
-            if (audioContext) return;
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                // 主音量
+                masterGain = audioContext.createGain();
+                masterGain.gain.setValueAtTime(0.25, audioContext.currentTime);
+                masterGain.connect(audioContext.destination);
 
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            
-            // 主音量
-            masterGain = audioContext.createGain();
-            masterGain.gain.setValueAtTime(0.25, audioContext.currentTime);
-            masterGain.connect(audioContext.destination);
+                // 旋律音量
+                melodyGain = audioContext.createGain();
+                melodyGain.gain.setValueAtTime(0.8, audioContext.currentTime);
+                melodyGain.connect(masterGain);
 
-            // 旋律音量
-            melodyGain = audioContext.createGain();
-            melodyGain.gain.setValueAtTime(0.8, audioContext.currentTime);
-            melodyGain.connect(masterGain);
+                // 低音音量
+                bassGain = audioContext.createGain();
+                bassGain.gain.setValueAtTime(0.6, audioContext.currentTime);
+                bassGain.connect(masterGain);
 
-            // 低音音量
-            bassGain = audioContext.createGain();
-            bassGain.gain.setValueAtTime(0.6, audioContext.currentTime);
-            bassGain.connect(masterGain);
-
-            // Pad 音量
-            padGain = audioContext.createGain();
-            padGain.gain.setValueAtTime(0.5, audioContext.currentTime);
-            padGain.connect(masterGain);
+                // Pad 音量
+                padGain = audioContext.createGain();
+                padGain.gain.setValueAtTime(0.5, audioContext.currentTime);
+                padGain.connect(masterGain);
+            }
 
             if (audioContext.state === 'suspended') {
                 audioContext.resume();
             }
 
             // 每0.5秒一拍 (120 BPM)
-            musicInterval = setInterval(playBeat, 500);
+            if (!musicInterval) {
+                musicInterval = setInterval(playBeat, 500);
+                playBeat();
+            }
             
-            // 立即开始第一拍
-            playBeat();
+            musicEnabled = true;
+            musicBtn.textContent = '🎵 音乐开';
+            musicBtn.classList.add('active');
         }
+
+        // 停止背景音乐
+        function stopBackgroundMusic() {
+            if (musicInterval) {
+                clearInterval(musicInterval);
+                musicInterval = null;
+            }
+            musicEnabled = false;
+            musicBtn.textContent = '🎵 音乐关';
+            musicBtn.classList.remove('active');
+        }
+
+        // 切换音乐
+        function toggleMusic() {
+            if (musicEnabled) {
+                stopBackgroundMusic();
+            } else {
+                startBackgroundMusic();
+            }
+        }
+
+        musicBtn.addEventListener('click', toggleMusic);
 
         // 在用户第一次交互时启动音乐
         function initMusicOnInteraction() {
-            startBackgroundMusic();
+            if (musicEnabled) {
+                startBackgroundMusic();
+            }
             document.removeEventListener('click', initMusicOnInteraction);
             document.removeEventListener('keydown', initMusicOnInteraction);
         }
