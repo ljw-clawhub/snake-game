@@ -236,7 +236,8 @@
         const finalScoreEl = document.getElementById('finalScore');
 
         const gridSize = 20;
-        const tileCount = canvas.width / gridSize;
+        const tileCountX = canvas.width / gridSize;   // 水平格子数 (40)
+        const tileCountY = canvas.height / gridSize;  // 垂直格子数 (20)
 
         let snake = [];
         let food = {};
@@ -253,9 +254,9 @@
 
         function initGame() {
             snake = [
-                { x: 10, y: 10 },
-                { x: 9, y: 10 },
-                { x: 8, y: 10 }
+                { x: 20, y: 10 },  // 调整到画布中心
+                { x: 19, y: 10 },
+                { x: 18, y: 10 }
             ];
             direction = { x: 1, y: 0 };
             nextDirection = { x: 1, y: 0 };
@@ -269,8 +270,8 @@
         function spawnFood() {
             do {
                 food = {
-                    x: Math.floor(Math.random() * tileCount),
-                    y: Math.floor(Math.random() * tileCount)
+                    x: Math.floor(Math.random() * tileCountX),
+                    y: Math.floor(Math.random() * tileCountY)
                 };
             } while (snake.some(segment => segment.x === food.x && segment.y === food.y));
         }
@@ -282,11 +283,13 @@
 
             // 绘制网格
             ctx.strokeStyle = 'rgba(0, 255, 136, 0.05)';
-            for (let i = 0; i < tileCount; i++) {
+            for (let i = 0; i < tileCountX; i++) {
                 ctx.beginPath();
                 ctx.moveTo(i * gridSize, 0);
                 ctx.lineTo(i * gridSize, canvas.height);
                 ctx.stroke();
+            }
+            for (let i = 0; i < tileCountY; i++) {
                 ctx.beginPath();
                 ctx.moveTo(0, i * gridSize);
                 ctx.lineTo(canvas.width, i * gridSize);
@@ -380,7 +383,7 @@
             const head = { x: snake[0].x + direction.x, y: snake[0].y + direction.y };
 
             // 检查碰撞
-            if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+            if (head.x < 0 || head.x >= tileCountX || head.y < 0 || head.y >= tileCountY) {
                 gameOver();
                 return;
             }
