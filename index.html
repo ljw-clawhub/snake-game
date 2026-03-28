@@ -103,6 +103,20 @@
             box-shadow: 0 5px 20px rgba(255, 215, 0, 0.4);
         }
 
+        .btn-music {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a5a);
+            color: #fff;
+        }
+
+        .btn-music:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(255, 107, 107, 0.4);
+        }
+
+        .btn-music.active {
+            background: linear-gradient(135deg, #4ecdc4, #44a3aa);
+        }
+
         .instructions {
             margin-top: 20px;
             padding: 15px;
@@ -202,6 +216,7 @@
         <div class="controls">
             <button class="btn-start" id="startBtn">开始游戏</button>
             <button class="btn-pause" id="pauseBtn">暂停</button>
+            <button class="btn-music" id="musicBtn">🎵 音乐</button>
         </div>
 
         <div class="mobile-controls">
@@ -245,7 +260,7 @@
         let score = 0;
         let highScore = localStorage.getItem('snakeHighScore') || 0;
         let gameLoop = null;
-        let gameSpeed = 100;
+        let gameSpeed = 130; // 减慢30%
         let isRunning = false;
         let isPaused = false;
 
@@ -261,7 +276,7 @@
             nextDirection = { x: 1, y: 0 };
             score = 0;
             scoreEl.textContent = score;
-            gameSpeed = 100;
+            gameSpeed = 130; // 减慢30%
             spawnFood();
             gameOverEl.style.display = 'none';
         }
@@ -492,6 +507,63 @@
                     break;
             }
         });
+
+        // 背景音乐系统 (Web Audio API)
+        let audioContext = null;
+        let musicPlaying = false;
+        let musicNodes = [];
+        const musicBtn = document.getElementById('musicBtn');
+
+        function createBackgroundMusic() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+
+            // 创建简单的循环背景音乐
+            const notes = [262, 294, 330, 349, 392, 440, 494, 523]; // C4 到 C5
+            let noteIndex = 0;
+
+            function playNote() {
+                if (!musicPlaying) return;
+
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(notes[noteIndex], audioContext.currentTime);
+
+                gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+
+                oscillator.start(audioContext.currentTime);
+                oscillator.stop(audioContext.currentTime + 0.3);
+
+                noteIndex = (noteIndex + 1) % notes.length;
+
+                musicNodes.push(setTimeout(playNote, 300));
+            }
+
+            playNote();
+        }
+
+        function toggleMusic() {
+            musicPlaying = !musicPlaying;
+            musicBtn.classList.toggle('active', musicPlaying);
+            musicBtn.textContent = musicPlaying ? '🎵 开' : '🎵 音乐';
+
+            if (musicPlaying) {
+                createBackgroundMusic();
+            } else {
+                // 停止所有音乐
+                musicNodes.forEach(node => clearTimeout(node));
+                musicNodes = [];
+            }
+        }
+
+        musicBtn.addEventListener('click', toggleMusic);
 
         // 按钮控制
         startBtn.addEventListener('click', startGame);
