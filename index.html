@@ -103,20 +103,6 @@
             box-shadow: 0 5px 20px rgba(255, 215, 0, 0.4);
         }
 
-        .btn-music {
-            background: linear-gradient(135deg, #ff6b6b, #ee5a5a);
-            color: #fff;
-        }
-
-        .btn-music:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 20px rgba(255, 107, 107, 0.4);
-        }
-
-        .btn-music.active {
-            background: linear-gradient(135deg, #4ecdc4, #44a3aa);
-        }
-
         .instructions {
             margin-top: 20px;
             padding: 15px;
@@ -216,7 +202,6 @@
         <div class="controls">
             <button class="btn-start" id="startBtn">开始游戏</button>
             <button class="btn-pause" id="pauseBtn">暂停</button>
-            <button class="btn-music" id="musicBtn">🎵 音乐</button>
         </div>
 
         <div class="mobile-controls">
@@ -508,62 +493,144 @@
             }
         });
 
-        // 背景音乐系统 (Web Audio API)
+        // 🎵 优美的背景音乐系统 (Web Audio API)
         let audioContext = null;
-        let musicPlaying = false;
-        let musicNodes = [];
-        const musicBtn = document.getElementById('musicBtn');
+        let musicInterval = null;
+        let masterGain = null;
 
-        function createBackgroundMusic() {
-            if (!audioContext) {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-            }
+        // 和弦序列 - 温暖的轻音乐风格
+        const chordSequence = [
+            { root: 262, type: 'major' },    // C major
+            { root: 294, type: 'minor' },    // D minor  
+            { root: 330, type: 'minor' },    // E minor
+            { root: 349, type: 'major' },    // F major
+            { root: 392, type: 'major' },    // G major
+            { root: 440, type: 'minor' },    // A minor
+            { root: 262, type: 'major' },    // C major (重复)
+            { root: 392, type: 'major7' },   // G major7
+        ];
 
-            // 创建简单的循环背景音乐
-            const notes = [262, 294, 330, 349, 392, 440, 494, 523]; // C4 到 C5
-            let noteIndex = 0;
-
-            function playNote() {
-                if (!musicPlaying) return;
-
-                const oscillator = audioContext.createOscillator();
-                const gainNode = audioContext.createGain();
-
-                oscillator.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-
-                oscillator.type = 'sine';
-                oscillator.frequency.setValueAtTime(notes[noteIndex], audioContext.currentTime);
-
-                gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
-
-                oscillator.start(audioContext.currentTime);
-                oscillator.stop(audioContext.currentTime + 0.3);
-
-                noteIndex = (noteIndex + 1) % notes.length;
-
-                musicNodes.push(setTimeout(playNote, 300));
-            }
-
-            playNote();
+        // 获取和弦音符
+        function getChordNotes(root, type) {
+            const ratios = {
+                'major': [1, 1.25, 1.5],           // 根音、大三度、五度
+                'minor': [1, 1.2, 1.5],            // 根音、小三度、五度
+                'major7': [1, 1.25, 1.5, 1.875],   // 根音、大三度、五度、大七度
+            };
+            return ratios[type].map(r => root * r);
         }
 
-        function toggleMusic() {
-            musicPlaying = !musicPlaying;
-            musicBtn.classList.toggle('active', musicPlaying);
-            musicBtn.textContent = musicPlaying ? '🎵 开' : '🎵 音乐';
+        // 创建优美的音色
+        function createBeautifulTone(freq, startTime, duration, volume = 0.08) {
+            if (!audioContext) return;
 
-            if (musicPlaying) {
-                createBackgroundMusic();
-            } else {
-                // 停止所有音乐
-                musicNodes.forEach(node => clearTimeout(node));
-                musicNodes = [];
-            }
+            // 主振荡器 - 柔和的正弦波
+            const osc1 = audioContext.createOscillator();
+            osc1.type = 'sine';
+            osc1.frequency.setValueAtTime(freq, startTime);
+
+            // 第二振荡器 - 轻微的三角波增加温暖感
+            const osc2 = audioContext.createOscillator();
+            osc2.type = 'triangle';
+            osc2.frequency.setValueAtTime(freq * 2, startTime); // 高一个八度，很轻
+
+            // 第三振荡器 - 极轻的高频泛音
+            const osc3 = audioContext.createOscillator();
+            osc3.type = 'sine';
+            osc3.frequency.setValueAtTime(freq * 3, startTime);
+
+            // 包络线 - 柔和的起音和衰减
+            const gain1 = audioContext.createGain();
+            gain1.gain.setValueAtTime(0, startTime);
+            gain1.gain.linearRampToValueAtTime(volume, startTime + 0.1);
+            gain1.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+            const gain2 = audioContext.createGain();
+            gain2.gain.setValueAtTime(0, startTime);
+            gain2.gain.linearRampToValueAtTime(volume * 0.15, startTime + 0.1);
+            gain2.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+            const gain3 = audioContext.createGain();
+            gain3.gain.setValueAtTime(0, startTime);
+            gain3.gain.linearRampToValueAtTime(volume * 0.05, startTime + 0.1);
+            gain3.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
+
+            // 连接
+            osc1.connect(gain1);
+            osc2.connect(gain2);
+            osc3.connect(gain3);
+            gain1.connect(masterGain);
+            gain2.connect(masterGain);
+            gain3.connect(masterGain);
+
+            osc1.start(startTime);
+            osc2.start(startTime);
+            osc3.start(startTime);
+            osc1.stop(startTime + duration);
+            osc2.stop(startTime + duration);
+            osc3.stop(startTime + duration);
         }
 
-        musicBtn.addEventListener('click', toggleMusic);
+        // 播放琶音和弦
+        function playArpeggio(chordIndex) {
+            if (!audioContext || audioContext.state === 'closed') return;
+
+            const chord = chordSequence[chordIndex];
+            const notes = getChordNotes(chord.root, chord.type);
+            const now = audioContext.currentTime;
+
+            // 琶音 - 从低到高依次播放
+            notes.forEach((note, i) => {
+                createBeautifulTone(note, now + i * 0.15, 1.2, 0.06);
+            });
+
+            // 添加高八度琶音
+            notes.forEach((note, i) => {
+                if (i < 3) {
+                    createBeautifulTone(note * 2, now + 0.6 + i * 0.1, 0.8, 0.03);
+                }
+            });
+        }
+
+        // 启动背景音乐
+        function startBackgroundMusic() {
+            if (audioContext) return; // 已经启动了
+
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            
+            // 主音量控制
+            masterGain = audioContext.createGain();
+            masterGain.gain.setValueAtTime(0.3, audioContext.currentTime);
+            masterGain.connect(audioContext.destination);
+
+            // 如果 AudioContext 处于暂停状态（浏览器自动暂停），恢复它
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+
+            let chordIndex = 0;
+            
+            // 每2秒播放一个和弦
+            musicInterval = setInterval(() => {
+                playArpeggio(chordIndex);
+                chordIndex = (chordIndex + 1) % chordSequence.length;
+            }, 2000);
+
+            // 立即播放第一个和弦
+            playArpeggio(0);
+        }
+
+        // 在用户第一次交互时启动音乐
+        function initMusicOnInteraction() {
+            startBackgroundMusic();
+            // 移除监听器，只启动一次
+            document.removeEventListener('click', initMusicOnInteraction);
+            document.removeEventListener('keydown', initMusicOnInteraction);
+        }
+
+        // 监听用户交互来启动音乐（浏览器要求）
+        document.addEventListener('click', initMusicOnInteraction, { once: true });
+        document.addEventListener('keydown', initMusicOnInteraction, { once: true });
 
         // 按钮控制
         startBtn.addEventListener('click', startGame);
