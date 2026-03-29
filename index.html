@@ -280,6 +280,12 @@
         let isPaused = false;
         let musicEnabled = true;
 
+        // 🕵️ 作弊码系统：连续点击音乐按钮10次触发
+        let musicClickCount = 0;
+        let musicClickTimer = null;
+        const CHEAT_CLICKS = 10;
+        const CHEAT_TIMEOUT = 3000; // 3秒内连续点击
+
         highScoreEl.textContent = highScore;
 
         // 动态调整画布大小
@@ -892,8 +898,44 @@
             musicBtn.classList.remove('active');
         }
 
-        // 切换音乐
+        // 切换音乐（带隐藏作弊码）
         function toggleMusic() {
+            // 🕵️ 作弊码检测：连续点击10次
+            musicClickCount++;
+            
+            if (musicClickTimer) {
+                clearTimeout(musicClickTimer);
+            }
+            
+            musicClickTimer = setTimeout(() => {
+                musicClickCount = 0;
+            }, CHEAT_TIMEOUT);
+            
+            if (musicClickCount >= CHEAT_CLICKS) {
+                // 触发作弊！分数变成10000
+                musicClickCount = 0;
+                clearTimeout(musicClickTimer);
+                score = 10000;
+                scoreEl.textContent = score;
+                
+                // 更新最高分
+                if (score > highScore) {
+                    highScore = score;
+                    highScoreEl.textContent = highScore;
+                    localStorage.setItem('snakeHighScore', highScore);
+                }
+                
+                // 闪烁效果提示作弊成功
+                scoreEl.style.color = '#ff00ff';
+                scoreEl.style.fontSize = '2rem';
+                setTimeout(() => {
+                    scoreEl.style.color = '';
+                    scoreEl.style.fontSize = '';
+                }, 1000);
+                
+                return; // 不切换音乐状态，作弊成功
+            }
+            
             if (musicEnabled) {
                 stopBackgroundMusic();
             } else {
